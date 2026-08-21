@@ -13,19 +13,19 @@ st.set_page_config(
 
 # --- CONFIGURATION BAR ---
 st.sidebar.header("⚙️ Configuration")
-# Sign up at https://the-odds-api.com for a free key
 API_KEY = st.sidebar.text_input("Enter your The Odds API Key:", type="password", value="")
 
-# Interactive dropdown options
 SPORT = st.sidebar.selectbox(
     "Select Sport:",
     options=["basketball_nba", "americanfootball_nfl", "basketball_ncaab", "baseball_mlb"],
     index=0
 )
 
+# Added 'h2h' to make it easier to test your key right away
 MARKET = st.sidebar.selectbox(
     "Select Prop Market:",
     options=[
+        ("h2h", "Game Winner (Moneyline)"),
         ("player_points", "Player Points"),
         ("player_pass_yds", "Passing Yards"),
         ("player_rush_yds", "Rushing Yards"),
@@ -33,9 +33,8 @@ MARKET = st.sidebar.selectbox(
         ("player_assists", "Assists")
     ],
     format_func=lambda x: x[1]
-)[0]
+)
 
-# Math benchmark: DFS slips need > 54.25% to break even in the long run
 TARGET_PROB = st.sidebar.slider("Minimum Win Probability (%)", min_value=50.0, max_value=60.0, value=54.25, step=0.05) / 100
 
 # =====================================================================
@@ -63,12 +62,12 @@ def fetch_data():
         st.warning("Please input your API key in the sidebar menu.")
         return None
         
-url = f"https://the-odds-api.com{SPORT}/odds/"
-
+    market_key = MARKET[0]
+    url = f"https://the-odds-api.com{SPORT}/odds/"
     params = {
         "apiKey": API_KEY,
         "regions": "us",
-        "markets": MARKET,
+        "markets": market_key,
         "oddsFormat": "american"
     }
     
@@ -94,48 +93,58 @@ if st.button("🔄 Refresh Live Odds Data"):
     st.cache_data.clear()
 
 raw_games = fetch_data()
+market_key = MARKET[0]
 
 if raw_games:
     rows = []
     
-    # Process nested JSON data into a clean data list
     for game in raw_games:
         for bookmaker in game.get("bookmakers", []):
             book_name = bookmaker.get("title")
             for market in bookmaker.get("markets", []):
-                if market.get("key") == MARKET:
-                    player_data = {}
-                    for outcome in market.get("outcomes", []):
-                        player = outcome.get("description")
-                        name = outcome.get("name") # Over or Under
-                        odds = outcome.get("price")
-                        point = outcome.get("point")
-                        
-                        if player not in player_data:
-                            player_data[player] = {"line": point}
-                        player_data[player][name] = odds
-
-                    for player, odds_info in player_data.items():
-                        over_odds = odds_info.get("Over")
-                        under_odds = odds_info.get("Under")
-                        line = odds_info.get("line")
-                        
-                        if over_odds and under_odds:
-                            fair_over, fair_under = calculate_fair_probability(over_odds, under_odds)
+                if market.get("key") == market_key:
+                    
+                    if market_key == "h2h":
+                        # Logic specifically for Game Winners
+                        outcomes = market.get("outcomes", [])
+                        if len(outcomes) == 2:
+                            o1, o2 = outcomes[0], outcomes[1]
+                            f_o1, f_o2 = calculate_fair_probability(o1.get("price"), o2.get("price"))
                             
-                            # Log the best target side based on your threshold filter
-                            if fair_over >= TARGET_PROB:
-                                rows.append([player, "OVER", line, f"{over_odds}/{under_odds}", book_name, round(fair_over * 100, 2)])
-                            elif fair_under >= TARGET_PROB:
-                                rows.append([player, "UNDER", line, f"{over_odds}/{under_odds}", book_name, round(fair_under * 100, 2)])
+                            if f_o1 >= TARGET_PROB:
+                                rows.append([f"{game.get('away_team')} @ {game.get('home_team')}", f"{o1.get('name')} ML", "N/A", f"{o1.get('price')}/{o2.get('price')}", book_name, round(f_o1 * 100, 2)])
+                            if f_o2 >= TARGET_PROB:
+                                rows.append([f"{game.get('away_team')} @ {game.get('home_team')}", f"{o2.get('name')} ML", "N/A", f"{o2.get('price')}/{o1.get('price')}", book_name, round(f_o2 * 100, 2)])
+                    else:
+                        # Logic for Player Props
+                        player_data = {}
+                        for outcome in market.get("outcomes", []):
+                            player = outcome.get("description")
+                            name = outcome.get("name")
+                            odds = outcome.get("price")
+                            point = outcome.get("point")
+                            
+                            if player not in player_data:
+                                player_data[player] = {"line": point}
+                            player_data[player][name] = odds
 
-    # Display findings in an interactive table if any exist
+                        for player, odds_info in player_data.items():
+                            over_odds = odds_info.get("Over")
+                            under_odds = odds_info.get("Under")
+                            line = odds_info.get("line")
+                            
+                            if over_odds and under_odds:
+                                fair_over, fair_under = calculate_fair_probability(over_odds, under_odds)
+                                
+                                if fair_over >= TARGET_PROB:
+                                    rows.append([player, "OVER", line, f"{over_odds}/{under_odds}", book_name, round(fair_over * 100, 2)])
+                                elif fair_under >= TARGET_PROB:
+                                    rows.append([player, "UNDER", line, f"{over_odds}/{under_odds}", book_name, round(fair_under * 100, 2)])
+
     if rows:
-        df = pd.DataFrame(rows, columns=["Player Name", "Target Bet", "Line Projection", "Bookmaker Odds (O/U)", "Sportsbook Source", "True Win %"])
-        # Always rank the absolute highest math edge at the very top
+        df = pd.DataFrame(rows, columns=["Target Selection", "Bet Type", "Line Projection", "Bookmaker Odds (O/U)", "Sportsbook Source", "True Win %"])
         df = df.sort_values(by="True Win %", ascending=False).reset_index(drop=True)
-        
         st.success(f"Discovered {len(df)} positive value opportunities matching your parameters!")
         st.dataframe(df, use_container_width=True)
     else:
-        st.info("No props currently cross your minimum win percentage threshold. Try lowering the target slider slightly.")
+        st.info("No options currently cross your minimum win percentage threshold. If you are checking player props, make sure that sport is actively in season right now, or try selecting 'Game Winner (Moneyline)'.")
