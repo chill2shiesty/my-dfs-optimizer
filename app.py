@@ -63,12 +63,12 @@ def fetch_data():
         return None
         
     market_key = MARKET[0]
-    url = f"https://the-odds-api.com{SPORT}/odds/"
-    params = {
-        "apiKey": API_KEY,
-        "regions": "us",
-        "markets": market_key,
-        "oddsFormat": "american"
+  url = "https://the-odds-api.com" + SPORT + "/odds/"
+params = {
+    "apiKey": API_KEY,
+    "regions": "us",
+    "markets": market_key,
+    "oddsFormat": "american"
     }
     
     with st.spinner("Fetching live market lines from sportsbooks..."):
