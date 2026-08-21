@@ -21,18 +21,22 @@ SPORT = st.sidebar.selectbox(
     index=0
 )
 
-MARKET = st.sidebar.selectbox(
+# Cleaned up dictionary to completely eliminate the selectbox bug
+MARKET_OPTIONS = {
+    "Game Winner (Moneyline)": "h2h",
+    "Player Points": "player_points",
+    "Passing Yards": "player_pass_yds",
+    "Rushing Yards": "player_rush_yds",
+    "Rebounds": "player_rebounds",
+    "Assists": "player_assists"
+}
+
+selected_market_label = st.sidebar.selectbox(
     "Select Prop Market:",
-    options=[
-        ("h2h", "Game Winner (Moneyline)"),
-        ("player_points", "Player Points"),
-        ("player_pass_yds", "Passing Yards"),
-        ("player_rush_yds", "Rushing Yards"),
-        ("player_rebounds", "Rebounds"),
-        ("player_assists", "Assists")
-    ],
-    format_func=lambda x: x
+    options=list(MARKET_OPTIONS.keys()),
+    index=0
 )
+MARKET = MARKET_OPTIONS[selected_market_label]
 
 TARGET_PROB = st.sidebar.slider("Minimum Win Probability (%)", min_value=50.0, max_value=60.0, value=54.25, step=0.05) / 100
 
@@ -63,7 +67,6 @@ def fetch_data():
         st.warning("Please input your API key in the sidebar menu.")
         return None
         
-    # Fixed base URL format completely separated from variables
     url = f"https://the-odds-api.com{SPORT}/odds/"
     params = {
         "apiKey": API_KEY,
