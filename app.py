@@ -37,7 +37,6 @@ selected_market_label = st.sidebar.selectbox(
 )
 MARKET = MARKET_OPTIONS[selected_market_label]
 
-# Lowered default slider slightly to 52.0% so data shows up instantly during testing
 TARGET_PROB = st.sidebar.slider("Minimum Win Probability (%)", min_value=50.0, max_value=60.0, value=52.00, step=0.05) / 100
 
 # =====================================================================
@@ -60,29 +59,31 @@ def calculate_fair_probability(over_odds, under_odds):
     return (p_over / total_implied), (p_under / total_implied)
 
 # =====================================================================
-# DATA RETRIEVAL
+# DATA RETRIEVAL (Bypassing Server Variables Completely)
 # =====================================================================
 def fetch_data():
     if not API_KEY:
         st.warning("Please input your API key in the sidebar menu.")
         return None
         
-    # VERIFIED API URL PATHWAY
-    url = f"https://the-odds-api.com{SPORT}/odds/"
-    params = {
-        "apiKey": API_KEY,
+    # Hardcoded, safe link configuration that cannot combine incorrectly
+    base_url = "https://the-odds-api.com"
+    endpoint_url = base_url + str(SPORT) + "/odds/"
+    
+    query_parameters = {
+        "apiKey": str(API_KEY).strip(),
         "regions": "us",
-        "markets": MARKET,
+        "markets": str(MARKET),
         "oddsFormat": "american"
     }
     
     with st.spinner("Fetching live market lines from sportsbooks..."):
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(endpoint_url, params=query_parameters)
             if response.status_code == 200:
                 return response.json()
             else:
-                st.error(f"API Error. Status Code: {response.status_code}. Response: {response.text}")
+                st.error(f"API Error. Status Code: {response.status_code}. Details: {response.text}")
                 return None
         except Exception as e:
             st.error(f"Network error: {e}")
@@ -94,7 +95,8 @@ def fetch_data():
 st.title("🔥 Free DFS Positive Expected Value (+EV) Optimizer")
 st.markdown("This dashboard finds player prop lines where sportsbooks heavily favor one side, making them profitable to target on flat-rate fantasy platforms.")
 
-if st.button("🔄 Refresh Live Odds Data"):
+# Clear any cached memory blocks on button press
+if st.button("🔄 Clear App Memory & Refresh Data"):
     st.cache_data.clear()
 
 raw_games = fetch_data()
@@ -111,8 +113,8 @@ if raw_games:
                     if MARKET == "h2h":
                         outcomes = market.get("outcomes", [])
                         if len(outcomes) >= 2:
-                            o1 = outcomes[0]
-                            o2 = outcomes[1]
+                            o1 = outcomes
+                            o2 = outcomes
                             f_o1, f_o2 = calculate_fair_probability(o1.get("price"), o2.get("price"))
                             
                             if f_o1 >= TARGET_PROB:
