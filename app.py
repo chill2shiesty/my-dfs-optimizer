@@ -21,7 +21,6 @@ SPORT = st.sidebar.selectbox(
     index=0
 )
 
-# Added 'h2h' to make it easier to test your key right away
 MARKET = st.sidebar.selectbox(
     "Select Prop Market:",
     options=[
@@ -32,7 +31,7 @@ MARKET = st.sidebar.selectbox(
         ("player_rebounds", "Rebounds"),
         ("player_assists", "Assists")
     ],
-    format_func=lambda x: x[1]
+    format_func=lambda x: x
 )
 
 TARGET_PROB = st.sidebar.slider("Minimum Win Probability (%)", min_value=50.0, max_value=60.0, value=54.25, step=0.05) / 100
@@ -52,6 +51,8 @@ def calculate_fair_probability(over_odds, under_odds):
     p_over = american_to_implied(over_odds)
     p_under = american_to_implied(under_odds)
     total_implied = p_over + p_under
+    if total_implied == 0:
+        return 0, 0
     return (p_over / total_implied), (p_under / total_implied)
 
 # =====================================================================
@@ -62,13 +63,13 @@ def fetch_data():
         st.warning("Please input your API key in the sidebar menu.")
         return None
         
-    market_key = MARKET[0]
-  url = "https://the-odds-api.com" + SPORT + "/odds/"
-params = {
-    "apiKey": API_KEY,
-    "regions": "us",
-    "markets": market_key,
-    "oddsFormat": "american"
+    # Fixed base URL format completely separated from variables
+    url = f"https://the-odds-api.com{SPORT}/odds/"
+    params = {
+        "apiKey": API_KEY,
+        "regions": "us",
+        "markets": MARKET,
+        "oddsFormat": "american"
     }
     
     with st.spinner("Fetching live market lines from sportsbooks..."):
@@ -93,7 +94,6 @@ if st.button("🔄 Refresh Live Odds Data"):
     st.cache_data.clear()
 
 raw_games = fetch_data()
-market_key = MARKET[0]
 
 if raw_games:
     rows = []
@@ -102,13 +102,13 @@ if raw_games:
         for bookmaker in game.get("bookmakers", []):
             book_name = bookmaker.get("title")
             for market in bookmaker.get("markets", []):
-                if market.get("key") == market_key:
+                if market.get("key") == MARKET:
                     
-                    if market_key == "h2h":
-                        # Logic specifically for Game Winners
+                    if MARKET == "h2h":
                         outcomes = market.get("outcomes", [])
-                        if len(outcomes) == 2:
-                            o1, o2 = outcomes[0], outcomes[1]
+                        if len(outcomes) >= 2:
+                            o1 = outcomes[0]
+                            o2 = outcomes[1]
                             f_o1, f_o2 = calculate_fair_probability(o1.get("price"), o2.get("price"))
                             
                             if f_o1 >= TARGET_PROB:
@@ -116,7 +116,6 @@ if raw_games:
                             if f_o2 >= TARGET_PROB:
                                 rows.append([f"{game.get('away_team')} @ {game.get('home_team')}", f"{o2.get('name')} ML", "N/A", f"{o2.get('price')}/{o1.get('price')}", book_name, round(f_o2 * 100, 2)])
                     else:
-                        # Logic for Player Props
                         player_data = {}
                         for outcome in market.get("outcomes", []):
                             player = outcome.get("description")
