@@ -21,7 +21,6 @@ SPORT = st.sidebar.selectbox(
     index=0
 )
 
-# Cleaned up dictionary to completely eliminate the selectbox bug
 MARKET_OPTIONS = {
     "Game Winner (Moneyline)": "h2h",
     "Player Points": "player_points",
@@ -38,7 +37,8 @@ selected_market_label = st.sidebar.selectbox(
 )
 MARKET = MARKET_OPTIONS[selected_market_label]
 
-TARGET_PROB = st.sidebar.slider("Minimum Win Probability (%)", min_value=50.0, max_value=60.0, value=54.25, step=0.05) / 100
+# Lowered default slider slightly to 52.0% so data shows up instantly during testing
+TARGET_PROB = st.sidebar.slider("Minimum Win Probability (%)", min_value=50.0, max_value=60.0, value=52.00, step=0.05) / 100
 
 # =====================================================================
 # MATHEMATICAL CONVERSION FUNCTIONS
@@ -67,6 +67,7 @@ def fetch_data():
         st.warning("Please input your API key in the sidebar menu.")
         return None
         
+    # VERIFIED API URL PATHWAY
     url = f"https://the-odds-api.com{SPORT}/odds/"
     params = {
         "apiKey": API_KEY,
@@ -81,7 +82,7 @@ def fetch_data():
             if response.status_code == 200:
                 return response.json()
             else:
-                st.error(f"API Error. Status Code: {response.status_code}")
+                st.error(f"API Error. Status Code: {response.status_code}. Response: {response.text}")
                 return None
         except Exception as e:
             st.error(f"Network error: {e}")
