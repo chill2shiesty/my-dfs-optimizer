@@ -63,7 +63,8 @@ def fetch_data():
         st.warning("Please input your API key in the sidebar menu.")
         return None
         
-    url = f"https://the-odds-api.com{SPORT}/odds/"
+url = f"https://the-odds-api.com{SPORT}/odds/"
+
     params = {
         "apiKey": API_KEY,
         "regions": "us",
